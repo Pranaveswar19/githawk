@@ -1,0 +1,1023 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GitHawk</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ["Inter", "sans-serif"],
+              mono: ["JetBrains Mono", "monospace"],
+            },
+            colors: {
+              metalBase: "#e4e4e7",
+              metalDark: "#d4d4d8",
+              ink: "#18181b",
+              inkMuted: "#52525b",
+              accent: "#e85d38",
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      body {
+        background: linear-gradient(180deg, #e4e4e7 0%, #d4d4d8 100%);
+        color: theme("colors.ink");
+        overflow: hidden;
+      }
+
+      .panel-metal {
+        background: linear-gradient(180deg, #ffffff 0%, #f4f4f5 100%);
+        border: 1px solid theme("colors.metalDark");
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 1),
+          0 4px 6px -1px rgba(0, 0, 0, 0.05),
+          0 10px 15px -3px rgba(0, 0, 0, 0.05);
+      }
+
+      .mesh-pattern {
+        background-image: radial-gradient(#a1a1aa 1.5px, transparent 1.5px);
+        background-size: 8px 8px;
+      }
+
+      .btn-metal {
+        background: linear-gradient(180deg, #ffffff 0%, #e4e4e7 100%);
+        border: 1px solid theme("colors.metalDark");
+        border-bottom-width: 3px;
+        border-bottom-color: #a1a1aa;
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 1),
+          0 2px 4px rgba(0, 0, 0, 0.05);
+        color: theme("colors.inkMuted");
+        transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .btn-metal:active {
+        border-bottom-width: 1px;
+        transform: translateY(2px);
+        margin-bottom: 2px;
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 1),
+          0 0px 0px rgba(0, 0, 0, 0);
+      }
+
+      .btn-accent {
+        background: linear-gradient(180deg, #f06c4a 0%, #e85d38 100%);
+        border: 1px solid #c24626;
+        border-bottom-width: 3px;
+        border-bottom-color: #9e361a;
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.3),
+          0 2px 4px rgba(232, 93, 56, 0.3);
+        color: #ffffff;
+        text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
+        transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .btn-accent:active {
+        border-bottom-width: 1px;
+        transform: translateY(2px);
+        margin-bottom: 2px;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+      }
+      .btn-accent:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .input-recessed {
+        background-color: #fafafa;
+        border: 1px solid theme("colors.metalDark");
+        box-shadow:
+          inset 0 2px 4px rgba(0, 0, 0, 0.06),
+          inset 0 0 0 1px rgba(0, 0, 0, 0.02),
+          0 1px 0 rgba(255, 255, 255, 0.8);
+        transition: all 0.2s;
+      }
+      .input-recessed:focus {
+        outline: none;
+        border-color: theme("colors.accent");
+        background-color: #ffffff;
+      }
+
+      /* Empty state */
+      .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 48px 24px;
+        color: theme("colors.inkMuted");
+        gap: 12px;
+      }
+
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #a1a1aa;
+        border-radius: 4px;
+        border: 1px solid #e4e4e7;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #71717a;
+      }
+
+      #draggableChat {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        touch-action: none;
+        z-index: 100;
+      }
+      #chatHeader {
+        cursor: grab;
+      }
+      #chatHeader:active {
+        cursor: grabbing;
+      }
+
+      /* Sync button spin state */
+      .syncing .sync-icon {
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* Toast */
+      #toast {
+        position: fixed;
+        bottom: 32px;
+        left: 50%;
+        transform: translateX(-50%) translateY(20px);
+        opacity: 0;
+        transition: all 0.25s ease;
+        z-index: 200;
+        pointer-events: none;
+      }
+      #toast.show {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+    </style>
+  </head>
+  <body
+    class="h-screen w-full flex antialiased selection:bg-accent selection:text-white"
+  >
+    <!-- ===================== SIDEBAR ===================== -->
+    <aside
+      class="w-72 panel-metal rounded-r-2xl my-2 ml-2 h-[calc(100vh-16px)] flex flex-col z-10 shrink-0 overflow-hidden shadow-2xl"
+    >
+      <!-- Branding -->
+      <div
+        class="p-6 border-b border-gray-200 flex items-center gap-3 bg-gradient-to-b from-white to-transparent"
+      >
+        <div
+          class="w-5 h-5 bg-gradient-to-br from-[#f06c4a] to-[#e85d38] rounded-sm shadow-inner flex-shrink-0 border border-[#c24626]"
+        ></div>
+        <span
+          class="font-extrabold tracking-tight text-xl text-ink drop-shadow-sm"
+          >GitHawk</span
+        >
+      </div>
+
+      <!-- Active repo display -->
+      <div
+        class="p-4 border-b border-gray-200 bg-gray-100/50 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]"
+      >
+        <p
+          class="text-[10px] font-bold text-inkMuted uppercase tracking-wider mb-2"
+        >
+          Workspace
+        </p>
+        <div
+          id="activeRepo"
+          class="w-full flex items-center gap-2 p-2.5 bg-white border border-gray-300 rounded-md shadow-sm"
+        >
+          <i data-lucide="github" class="w-4 h-4 text-inkMuted shrink-0"></i>
+          <span
+            id="activeRepoLabel"
+            class="text-sm font-semibold text-inkMuted italic truncate"
+            >No repo linked</span
+          >
+        </div>
+      </div>
+
+      <!-- Navigation -->
+      <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
+        <button
+          onclick="navigate('dashboard')"
+          id="nav-dashboard"
+          class="nav-btn w-full flex items-center gap-3 p-3 text-left font-semibold text-ink bg-gray-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] border border-gray-300 rounded-md"
+        >
+          <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+          Dashboard
+        </button>
+        <button
+          onclick="navigate('issues')"
+          id="nav-issues"
+          class="nav-btn w-full flex items-center gap-3 p-3 text-left font-medium text-inkMuted hover:bg-gray-100 hover:text-ink rounded-md transition-colors border border-transparent"
+        >
+          <i data-lucide="circle-dot" class="w-5 h-5"></i>
+          Issues
+        </button>
+        <button
+          onclick="navigate('commits')"
+          id="nav-commits"
+          class="nav-btn w-full flex items-center gap-3 p-3 text-left font-medium text-inkMuted hover:bg-gray-100 hover:text-ink rounded-md transition-colors border border-transparent"
+        >
+          <i data-lucide="git-commit" class="w-5 h-5"></i>
+          Commits
+        </button>
+        <div class="py-3">
+          <div
+            class="h-px w-full bg-gray-200 shadow-[0_1px_0_rgba(255,255,255,0.8)]"
+          ></div>
+        </div>
+        <button
+          onclick="navigate('settings')"
+          id="nav-settings"
+          class="nav-btn w-full flex items-center gap-3 p-3 text-left font-medium text-inkMuted hover:bg-gray-100 hover:text-ink rounded-md transition-colors border border-transparent"
+        >
+          <i data-lucide="settings" class="w-5 h-5"></i>
+          Settings
+        </button>
+      </nav>
+
+      <!-- User -->
+      <div class="p-4 border-t border-gray-200 bg-gray-50">
+        <div class="flex items-center gap-3">
+          <div
+            class="w-9 h-9 rounded-md border border-gray-300 shadow-sm bg-gray-200 flex items-center justify-center"
+          >
+            <i data-lucide="user" class="w-4 h-4 text-inkMuted"></i>
+          </div>
+          <div>
+            <p class="font-bold text-sm text-ink leading-tight">Admin</p>
+            <p class="text-xs text-inkMuted font-medium">internal</p>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ===================== MAIN ===================== -->
+    <main class="flex-1 flex flex-col h-full z-10 relative">
+      <!-- Header -->
+      <header
+        class="h-20 px-8 flex justify-between items-center shrink-0 z-20 mt-2"
+      >
+        <div>
+          <h2
+            id="viewTitle"
+            class="text-2xl font-black text-ink tracking-tight drop-shadow-md"
+          >
+            Overview
+          </h2>
+          <p
+            id="viewSubtitle"
+            class="font-mono text-xs text-inkMuted mt-0.5 font-semibold"
+            id="viewSubtitle"
+          >
+            —
+          </p>
+        </div>
+
+        <div class="flex items-center gap-4">
+          <button
+            id="syncBtn"
+            onclick="triggerSync()"
+            class="btn-metal rounded-md px-4 py-2 flex items-center gap-2 text-sm font-bold"
+          >
+            <i
+              data-lucide="refresh-cw"
+              class="w-4 h-4 sync-icon text-inkMuted"
+            ></i>
+            <span class="text-ink">SYNC</span>
+          </button>
+          <button
+            onclick="openModal('issueModal')"
+            class="btn-accent rounded-md px-6 py-2 flex items-center gap-2 text-sm font-bold tracking-wide"
+          >
+            <i data-lucide="plus" class="w-4 h-4 text-white"></i>
+            NEW ISSUE
+          </button>
+        </div>
+      </header>
+
+      <!-- View container -->
+      <div id="viewContainer" class="flex-1 overflow-y-auto p-8 relative">
+        <!-- ========== DASHBOARD ========== -->
+        <div
+          id="view-dashboard"
+          class="view-section max-w-5xl mx-auto space-y-8 block"
+        >
+          <!-- Metric cards -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="panel-metal p-6 rounded-xl relative overflow-hidden">
+              <p
+                class="text-xs font-bold text-inkMuted uppercase tracking-wider mb-2"
+              >
+                Open Issues
+              </p>
+              <h3 id="stat-open" class="text-4xl font-black text-inkMuted">
+                —
+              </h3>
+              <div class="absolute right-6 top-6 text-gray-300">
+                <i data-lucide="alert-circle" class="w-6 h-6"></i>
+              </div>
+            </div>
+            <div class="panel-metal p-6 rounded-xl relative overflow-hidden">
+              <p
+                class="text-xs font-bold text-inkMuted uppercase tracking-wider mb-2"
+              >
+                In Progress
+              </p>
+              <h3 id="stat-progress" class="text-4xl font-black text-inkMuted">
+                —
+              </h3>
+              <div class="absolute right-6 top-6 text-gray-300">
+                <i data-lucide="activity" class="w-6 h-6"></i>
+              </div>
+            </div>
+            <div
+              class="panel-metal p-6 rounded-xl relative overflow-hidden mesh-pattern"
+            >
+              <div
+                class="relative z-10 bg-white/90 p-1.5 rounded shadow-sm inline-block mb-1 border border-gray-200"
+              >
+                <p class="text-xs font-bold text-ink uppercase tracking-wider">
+                  Closed (7d)
+                </p>
+              </div>
+              <br />
+              <h3
+                id="stat-closed"
+                class="text-4xl font-black text-inkMuted relative z-10 bg-white/90 p-1.5 rounded shadow-sm inline-block mt-1 border border-gray-200"
+              >
+                —
+              </h3>
+            </div>
+          </div>
+
+          <!-- Activity feed -->
+          <div class="panel-metal rounded-xl overflow-hidden">
+            <div
+              class="border-b border-gray-200 p-5 flex justify-between items-center bg-gray-100 shadow-[inset_0_-1px_2px_rgba(0,0,0,0.02)]"
+            >
+              <h3
+                class="font-bold text-ink flex items-center gap-2 drop-shadow-sm"
+              >
+                <i data-lucide="list-tree" class="w-4 h-4 text-inkMuted"></i>
+                Activity Feed
+              </h3>
+            </div>
+            <div id="activityFeed" class="bg-white/50">
+              <div class="empty-state">
+                <i data-lucide="inbox" class="w-8 h-8 text-gray-300"></i>
+                <p class="text-sm font-semibold">No activity yet</p>
+                <p class="text-xs text-gray-400">
+                  Sync a repository to see issues and commits here
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========== ISSUES ========== -->
+        <div
+          id="view-issues"
+          class="view-section hidden max-w-5xl mx-auto space-y-4"
+        >
+          <!-- Search bar -->
+          <div class="flex gap-4 mb-6">
+            <div class="relative flex-1">
+              <i
+                data-lucide="search"
+                class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-inkMuted"
+              ></i>
+              <input
+                id="issueSearch"
+                type="text"
+                placeholder="Search issues…"
+                class="w-full input-recessed py-2.5 pl-10 pr-4 rounded-md text-sm text-ink font-semibold"
+                oninput="filterIssues()"
+              />
+            </div>
+            <button
+              class="btn-metal px-4 py-2.5 rounded-md font-bold text-sm text-ink flex items-center gap-2"
+            >
+              <i data-lucide="filter" class="w-4 h-4"></i> Filters
+            </button>
+          </div>
+
+          <!-- Issues table -->
+          <div class="panel-metal rounded-xl overflow-hidden">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr
+                  class="border-b border-gray-300 bg-gray-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] text-xs font-extrabold text-inkMuted uppercase tracking-wider"
+                >
+                  <th class="p-4 w-20">ID</th>
+                  <th class="p-4">Title</th>
+                  <th class="p-4 w-32">Status</th>
+                  <th class="p-4 w-40">Author</th>
+                </tr>
+              </thead>
+              <tbody
+                id="issuesTableBody"
+                class="divide-y divide-gray-200 text-sm font-semibold bg-white/50"
+              >
+                <tr>
+                  <td colspan="4">
+                    <div class="empty-state">
+                      <i
+                        data-lucide="circle-dot"
+                        class="w-8 h-8 text-gray-300"
+                      ></i>
+                      <p class="text-sm font-semibold">No issues loaded</p>
+                      <p class="text-xs text-gray-400">
+                        Sync your repository to load issues
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ========== COMMITS ========== -->
+        <div
+          id="view-commits"
+          class="view-section hidden max-w-5xl mx-auto space-y-4"
+        >
+          <div class="panel-metal rounded-xl overflow-hidden">
+            <div
+              class="border-b border-gray-200 p-5 flex justify-between items-center bg-gray-100"
+            >
+              <h3 class="font-bold text-ink flex items-center gap-2">
+                <i data-lucide="git-commit" class="w-4 h-4 text-inkMuted"></i>
+                Commit History
+              </h3>
+            </div>
+            <div id="commitsList" class="bg-white/50">
+              <div class="empty-state">
+                <i data-lucide="git-commit" class="w-8 h-8 text-gray-300"></i>
+                <p class="text-sm font-semibold">No commits loaded</p>
+                <p class="text-xs text-gray-400">
+                  Sync your repository to load commit history
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========== SETTINGS ========== -->
+        <div
+          id="view-settings"
+          class="view-section hidden max-w-xl mx-auto mt-12"
+        >
+          <div class="panel-metal rounded-2xl p-8">
+            <div
+              class="w-12 h-12 bg-gray-200 border border-gray-300 rounded-xl flex items-center justify-center mb-6 shadow-inner"
+            >
+              <i data-lucide="link-2" class="w-6 h-6 text-ink"></i>
+            </div>
+            <h3 class="text-2xl font-black text-ink mb-2">
+              Connect Repository
+            </h3>
+            <p class="text-sm font-semibold text-inkMuted mb-8 leading-relaxed">
+              Link a GitHub repository to track its issues and commit history.
+            </p>
+
+            <form
+              onsubmit="
+                event.preventDefault();
+                connectRepo(this);
+              "
+              class="space-y-5"
+            >
+              <div>
+                <label
+                  class="block text-xs font-extrabold text-ink uppercase tracking-wide mb-1.5"
+                  >Repository</label
+                >
+                <input
+                  id="repoInput"
+                  type="text"
+                  required
+                  placeholder="owner/repo"
+                  class="w-full input-recessed p-3 rounded-md text-sm text-ink font-mono font-bold"
+                />
+                <p class="text-xs text-inkMuted mt-1.5 font-medium">
+                  e.g. your-username/githawk
+                </p>
+              </div>
+              <div class="pt-4">
+                <button
+                  type="submit"
+                  id="connectBtn"
+                  class="w-full btn-accent py-3 rounded-md font-black text-white"
+                >
+                  CONNECT
+                </button>
+              </div>
+            </form>
+
+            <!-- Connection status -->
+            <div
+              id="connectionStatus"
+              class="hidden mt-6 p-4 bg-gray-100 border border-gray-300 rounded-lg"
+            >
+              <p
+                class="text-xs font-bold text-inkMuted uppercase tracking-wider mb-1"
+              >
+                Connected
+              </p>
+              <p
+                id="connectionRepoName"
+                class="font-mono font-bold text-ink text-sm"
+              ></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- ===================== MODAL: NEW ISSUE ===================== -->
+    <div
+      id="issueModal"
+      class="fixed inset-0 bg-ink/40 backdrop-blur-[2px] hidden z-50 flex items-center justify-center p-4 opacity-0 transition-opacity duration-200"
+    >
+      <div
+        class="w-full max-w-2xl panel-metal rounded-2xl transform translate-y-4 transition-transform duration-200 flex flex-col overflow-hidden shadow-2xl"
+        id="issueModalContent"
+      >
+        <div
+          class="px-6 py-4 border-b border-gray-300 flex justify-between items-center bg-gray-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]"
+        >
+          <h2 class="text-lg font-black text-ink flex items-center gap-2">
+            <div
+              class="w-3 h-3 rounded-full bg-accent border border-[#c24626] shadow-inner"
+            ></div>
+            Create Issue
+          </h2>
+          <button
+            onclick="closeModal('issueModal')"
+            class="p-1.5 text-inkMuted hover:bg-gray-300 rounded border border-transparent hover:border-gray-400 transition-colors"
+          >
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <form
+          onsubmit="
+            event.preventDefault();
+            submitNewIssue(this);
+          "
+          class="p-6 space-y-5 bg-gray-50/50"
+        >
+          <div>
+            <label
+              class="block text-[11px] font-extrabold text-inkMuted uppercase tracking-wider mb-1.5"
+              >Issue Title</label
+            >
+            <input
+              type="text"
+              required
+              placeholder="Brief description of the problem…"
+              class="w-full input-recessed p-3 rounded-md text-base font-bold text-ink"
+            />
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label
+                class="block text-[11px] font-extrabold text-inkMuted uppercase tracking-wider mb-1.5"
+                >Label</label
+              >
+              <select
+                class="w-full input-recessed p-3 rounded-md text-sm font-bold text-ink appearance-none cursor-pointer bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2352525b%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[position:right_1rem_center]"
+              >
+                <option value="bug">Bug</option>
+                <option value="enhancement">Enhancement</option>
+                <option value="documentation">Documentation</option>
+              </select>
+            </div>
+            <div>
+              <label
+                class="block text-[11px] font-extrabold text-inkMuted uppercase tracking-wider mb-1.5"
+                >Priority</label
+              >
+              <select
+                class="w-full input-recessed p-3 rounded-md text-sm font-bold text-ink appearance-none cursor-pointer bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2352525b%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[position:right_1rem_center]"
+              >
+                <option value="high">High</option>
+                <option value="medium" selected>Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label
+              class="block text-[11px] font-extrabold text-inkMuted uppercase tracking-wider mb-1.5"
+              >Description</label
+            >
+            <textarea
+              rows="4"
+              required
+              placeholder="Details, steps to reproduce, or acceptance criteria…"
+              class="w-full input-recessed p-3 rounded-md text-sm font-semibold text-ink resize-none"
+            ></textarea>
+          </div>
+
+          <div class="pt-4 border-t border-gray-200 flex justify-end gap-3">
+            <button
+              type="button"
+              onclick="closeModal('issueModal')"
+              class="btn-metal px-5 py-2.5 rounded-md font-bold"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              id="pushIssueBtn"
+              class="btn-accent px-6 py-2.5 rounded-md font-bold flex items-center gap-2"
+            >
+              <i data-lucide="arrow-up-right" class="w-4 h-4 text-white"></i>
+              <span id="pushIssueText">Submit Issue</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ===================== DRAGGABLE CHATBOT ===================== -->
+    <div
+      id="draggableChat"
+      class="w-80 panel-metal rounded-xl flex flex-col transition-transform overflow-hidden shadow-2xl"
+    >
+      <div
+        id="chatHeader"
+        class="bg-gray-200 border-b border-gray-300 p-3 flex justify-between items-center text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]"
+      >
+        <h3
+          class="font-extrabold text-xs flex items-center gap-2 uppercase tracking-wide text-ink"
+        >
+          <i data-lucide="grip-horizontal" class="w-4 h-4 text-inkMuted"></i> AI
+          Assistant
+        </h3>
+        <button
+          onclick="toggleChatBody()"
+          class="text-inkMuted hover:text-ink transition-colors bg-white/50 p-1 rounded border border-gray-300 shadow-sm"
+        >
+          <i data-lucide="minus" class="w-4 h-4" id="chatToggleIcon"></i>
+        </button>
+      </div>
+      <div id="chatBody" class="flex flex-col h-72">
+        <div
+          id="chatMessages"
+          class="flex-1 p-4 overflow-y-auto space-y-4 bg-gray-100/50 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]"
+        >
+          <div class="flex gap-3">
+            <div
+              class="w-7 h-7 rounded border border-gray-300 shadow-inner bg-gradient-to-b from-gray-100 to-gray-200 text-ink flex items-center justify-center shrink-0"
+            >
+              <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+            </div>
+            <p
+              class="text-sm font-semibold text-ink bg-white p-3 rounded-md border border-gray-300 shadow-sm leading-relaxed"
+            >
+              Sync a repository to get started. I'll be able to answer questions
+              about your issues and commits once data is loaded.
+            </p>
+          </div>
+        </div>
+        <div
+          class="p-3 bg-gray-200 border-t border-gray-300 flex gap-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]"
+        >
+          <input
+            id="chatInput"
+            type="text"
+            placeholder="Ask about your repo…"
+            class="flex-1 input-recessed rounded-md text-sm font-bold px-3 py-2"
+            onkeydown="if (event.key === 'Enter') sendChat();"
+          />
+          <button
+            onclick="sendChat()"
+            class="btn-metal p-2 rounded-md flex items-center justify-center"
+          >
+            <i data-lucide="arrow-up" class="w-4 h-4 text-ink"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast notification -->
+    <div
+      id="toast"
+      class="panel-metal rounded-lg px-5 py-3 flex items-center gap-3 shadow-lg"
+    >
+      <i id="toastIcon" data-lucide="check" class="w-4 h-4 text-green-600"></i>
+      <span id="toastMsg" class="text-sm font-bold text-ink"></span>
+    </div>
+
+    <script>
+      lucide.createIcons();
+
+      // ─── State ───────────────────────────────────────────
+      const state = {
+        repo: null, // "owner/repo" string
+        issues: [],
+        commits: [],
+        syncing: false,
+      };
+
+      // ─── Router ──────────────────────────────────────────
+      const viewMeta = {
+        dashboard: { title: "Overview", subtitle: () => state.repo || "—" },
+        issues: { title: "Issues", subtitle: () => state.repo || "—" },
+        commits: { title: "Commit History", subtitle: () => state.repo || "—" },
+        settings: { title: "Settings", subtitle: "Connect a repository" },
+      };
+
+      function navigate(viewId) {
+        document
+          .querySelectorAll(".view-section")
+          .forEach((el) => el.classList.add("hidden"));
+        document.querySelectorAll(".nav-btn").forEach((btn) => {
+          btn.className =
+            "nav-btn w-full flex items-center gap-3 p-3 text-left font-medium text-inkMuted hover:bg-gray-100 hover:text-ink rounded-md transition-colors border border-transparent";
+        });
+
+        document.getElementById(`view-${viewId}`).classList.remove("hidden");
+        document.getElementById(`nav-${viewId}`).className =
+          "nav-btn w-full flex items-center gap-3 p-3 text-left font-semibold text-ink bg-gray-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] border border-gray-300 rounded-md";
+
+        const meta = viewMeta[viewId];
+        document.getElementById("viewTitle").innerText = meta.title;
+        document.getElementById("viewSubtitle").innerText = meta.subtitle();
+      }
+
+      // ─── Repo connection (wired to backend in phase 2) ───
+      function connectRepo(form) {
+        const input = document.getElementById("repoInput").value.trim();
+        if (!input.includes("/")) {
+          showToast("Use format: owner/repo", "error");
+          return;
+        }
+
+        state.repo = input;
+        document.getElementById("activeRepoLabel").textContent = input;
+        document
+          .getElementById("activeRepoLabel")
+          .classList.remove("italic", "text-inkMuted");
+        document.getElementById("activeRepoLabel").classList.add("text-ink");
+
+        document.getElementById("connectionStatus").classList.remove("hidden");
+        document.getElementById("connectionRepoName").textContent = input;
+
+        showToast("Repository connected");
+        navigate("dashboard");
+      }
+
+      // ─── Sync (wired to backend in phase 2) ──────────────
+      function triggerSync() {
+        if (state.syncing) return;
+        if (!state.repo) {
+          showToast("Connect a repository first", "error");
+          navigate("settings");
+          return;
+        }
+
+        state.syncing = true;
+        const btn = document.getElementById("syncBtn");
+        btn.classList.add("syncing");
+        btn.disabled = true;
+
+        // TODO phase 2: call POST /api/sync, then renderIssues() + renderCommits()
+        setTimeout(() => {
+          state.syncing = false;
+          btn.classList.remove("syncing");
+          btn.disabled = false;
+          showToast("Sync complete");
+        }, 1200);
+      }
+
+      // ─── Issues render (populated in phase 2) ────────────
+      function renderIssues() {
+        const body = document.getElementById("issuesTableBody");
+        if (!state.issues.length) return;
+        body.innerHTML = state.issues
+          .map(
+            (issue) => `
+                <tr class="hover:bg-white cursor-pointer transition-colors">
+                    <td class="p-4 font-mono text-inkMuted">#${issue.number}</td>
+                    <td class="p-4 text-ink font-bold">${escHtml(issue.title)}</td>
+                    <td class="p-4">${statusBadge(issue.state)}</td>
+                    <td class="p-4 text-inkMuted">${escHtml(issue.user?.login || "—")}</td>
+                </tr>
+            `,
+          )
+          .join("");
+      }
+
+      function filterIssues() {
+        const q = document.getElementById("issueSearch").value.toLowerCase();
+        document.querySelectorAll("#issuesTableBody tr").forEach((row) => {
+          row.style.display = row.textContent.toLowerCase().includes(q)
+            ? ""
+            : "none";
+        });
+      }
+
+      function statusBadge(state) {
+        if (state === "open")
+          return '<span class="px-2 py-1 bg-accent/10 text-accent border border-accent/20 text-[10px] font-bold uppercase rounded shadow-sm">Open</span>';
+        if (state === "closed")
+          return '<span class="px-2 py-1 bg-gray-200 text-inkMuted text-[10px] font-bold uppercase rounded border border-gray-300 shadow-sm">Closed</span>';
+        return '<span class="px-2 py-1 bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-bold uppercase rounded shadow-sm">Unknown</span>';
+      }
+
+      // ─── Commits render (populated in phase 2) ───────────
+      function renderCommits() {
+        const list = document.getElementById("commitsList");
+        if (!state.commits.length) return;
+        list.innerHTML = state.commits
+          .map(
+            (c) => `
+                <div class="p-5 hover:bg-white transition-colors border-b border-gray-200 last:border-0 flex items-start gap-4">
+                    <i data-lucide="git-commit" class="w-4 h-4 text-inkMuted mt-1 shrink-0"></i>
+                    <div class="min-w-0">
+                        <p class="text-sm font-bold text-ink truncate">${escHtml(c.commit?.message?.split("\n")[0] || "—")}</p>
+                        <div class="flex items-center gap-2 mt-1 text-xs text-inkMuted font-semibold">
+                            <span class="font-mono bg-gray-200 border border-gray-300 px-1.5 py-0.5 rounded shadow-inner">${c.sha?.slice(0, 7)}</span>
+                            <span>${escHtml(c.commit?.author?.name || "—")}</span>
+                        </div>
+                    </div>
+                </div>
+            `,
+          )
+          .join("");
+        lucide.createIcons();
+      }
+
+      // ─── Submit issue (wired to backend in phase 2) ──────
+      function submitNewIssue(form) {
+        const btn = document.getElementById("pushIssueBtn");
+        const text = document.getElementById("pushIssueText");
+
+        // TODO phase 2: POST to GitHub via /api/issues, then sync
+        text.innerText = "Submitting…";
+        btn.disabled = true;
+
+        setTimeout(() => {
+          text.innerText = "Submit Issue";
+          btn.disabled = false;
+          closeModal("issueModal");
+          form.reset();
+          showToast("Issue submitted (not yet wired to GitHub)");
+        }, 800);
+      }
+
+      // ─── Chat (wired to backend in phase 3) ──────────────
+      function sendChat() {
+        const input = document.getElementById("chatInput");
+        const msg = input.value.trim();
+        if (!msg) return;
+        input.value = "";
+        appendChatMessage("user", msg);
+        // TODO phase 3: POST to /api/chat
+        setTimeout(() => {
+          appendChatMessage(
+            "bot",
+            "AI assistant not yet connected. Sync a repository and come back in phase 3.",
+          );
+        }, 400);
+      }
+
+      function appendChatMessage(role, text) {
+        const container = document.getElementById("chatMessages");
+        const isBot = role === "bot";
+        const div = document.createElement("div");
+        div.className = "flex gap-3" + (isBot ? "" : " justify-end");
+        div.innerHTML = isBot
+          ? `<div class="w-7 h-7 rounded border border-gray-300 shadow-inner bg-gradient-to-b from-gray-100 to-gray-200 flex items-center justify-center shrink-0"><i data-lucide="sparkles" class="w-3.5 h-3.5"></i></div>
+                   <p class="text-sm font-semibold text-ink bg-white p-3 rounded-md border border-gray-300 shadow-sm leading-relaxed">${escHtml(text)}</p>`
+          : `<p class="text-sm font-semibold text-white bg-accent p-3 rounded-md shadow-sm leading-relaxed">${escHtml(text)}</p>`;
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+        lucide.createIcons();
+      }
+
+      // ─── Modal ────────────────────────────────────────────
+      function openModal(id) {
+        const modal = document.getElementById(id);
+        const content = document.getElementById(id + "Content");
+        modal.classList.remove("hidden");
+        void modal.offsetWidth;
+        modal.classList.remove("opacity-0");
+        content.classList.remove("translate-y-4");
+      }
+
+      function closeModal(id) {
+        const modal = document.getElementById(id);
+        const content = document.getElementById(id + "Content");
+        modal.classList.add("opacity-0");
+        content.classList.add("translate-y-4");
+        setTimeout(() => modal.classList.add("hidden"), 200);
+      }
+
+      // ─── Toast ────────────────────────────────────────────
+      function showToast(message, type = "success") {
+        const toast = document.getElementById("toast");
+        const icon = document.getElementById("toastIcon");
+        document.getElementById("toastMsg").textContent = message;
+        icon.setAttribute(
+          "data-lucide",
+          type === "error" ? "alert-circle" : "check",
+        );
+        icon.className = `w-4 h-4 ${type === "error" ? "text-red-500" : "text-green-600"}`;
+        lucide.createIcons();
+        toast.classList.add("show");
+        setTimeout(() => toast.classList.remove("show"), 2500);
+      }
+
+      // ─── Chat toggle ──────────────────────────────────────
+      function toggleChatBody() {
+        const body = document.getElementById("chatBody");
+        const icon = document.getElementById("chatToggleIcon");
+        const collapsed = body.classList.toggle("hidden");
+        icon.setAttribute("data-lucide", collapsed ? "square" : "minus");
+        lucide.createIcons();
+      }
+
+      // ─── Draggable chat ───────────────────────────────────
+      const chatWin = document.getElementById("draggableChat");
+      const chatHeader = document.getElementById("chatHeader");
+      let isDragging = false,
+        xOffset = 0,
+        yOffset = 0,
+        initialX,
+        initialY,
+        currentX,
+        currentY;
+
+      chatWin.style.transform = "translate3d(0px, 0px, 0)";
+      chatHeader.addEventListener("mousedown", (e) => {
+        initialX = e.clientX - xOffset;
+        initialY = e.clientY - yOffset;
+        if (chatHeader.contains(e.target)) {
+          isDragging = true;
+          chatWin.style.transform = `translate3d(${xOffset}px, ${yOffset}px, 0) scale(1.02)`;
+        }
+      });
+      document.addEventListener("mouseup", () => {
+        isDragging = false;
+        chatWin.style.transition =
+          "transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
+        chatWin.style.transform = `translate3d(${xOffset}px, ${yOffset}px, 0) scale(1)`;
+      });
+      document.addEventListener("mousemove", (e) => {
+        if (!isDragging) return;
+        e.preventDefault();
+        currentX = e.clientX - initialX;
+        currentY = e.clientY - initialY;
+        xOffset = currentX;
+        yOffset = currentY;
+        chatWin.style.transition = "none";
+        chatWin.style.transform = `translate3d(${currentX}px, ${currentY}px, 0) scale(1.02)`;
+      });
+
+      // ─── Helpers ──────────────────────────────────────────
+      function escHtml(str) {
+        return String(str).replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[c],
+        );
+      }
+    </script>
+  </body>
+</html>
